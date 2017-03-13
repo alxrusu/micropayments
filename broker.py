@@ -1,6 +1,7 @@
 '''This script will serve as a broker server in the micropayments scheme'''
 import sys
 import socket
+import ssl
 
 
 class Broker:
@@ -13,6 +14,8 @@ class Broker:
         pass
 
     def serve(self):
+        context = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+        context.load_cert_chain(certfile="cert.pem")
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         print 'Socket created'
@@ -31,7 +34,10 @@ class Broker:
 
         while 1:
             conn, addr = s.accept()
+            sslsoc = context.wrap_socket(s, server_side=True)
             print 'Connected with ' + addr[0] + ':' + str(addr[1])
+            request = sslsoc.read()
+            print request
 
         s.close()
         pass
