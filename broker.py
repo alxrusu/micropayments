@@ -7,6 +7,7 @@ import hashlib
 import os
 import Crypto.PublicKey.RSA as RSA
 from datetime import datetime
+from utils import *
 
 
 class Broker:
@@ -45,19 +46,6 @@ class Broker:
                 print "Listen failed: " + str(msg[0]) + " Message " + msg[1]
                 err = 1
 
-    def sign_message(self, message):
-        sha1 = hashlib.sha1()
-        sha1.update(message)
-
-        signature = self.key.sign(sha1.hexdigest(), '')
-        return message + str(signature)
-
-    def split_signature(self, message):
-        rev = message[::-1]
-        poz = rev.index("}")
-        return (message[:len(message) - poz],
-                message[len(message) - poz:])
-
     def deal_with_client(self, connstream):
         data = connstream.read()
 
@@ -76,25 +64,37 @@ class Broker:
                                     "KeyUser": str(user_public_key),
                                     "ExpirationDate": str(datetime.now()),
                                     "Info": str(self.credit)}
-                    print self.sign_message(json.dumps(payword_json))
+                    print sign_message(json.dumps(payword_json))
                 elif request['Request'] == 'Redeem':
                     userdata = request['Data']
+                    signature = request['Signature']
                     commit = userdata['Commit']
                     last_commit = userdata['LastCommit']
                     last_commit_index = userdata['LastCommitIndex']
-                    commit = self.split_signature(commit)
 
-                    user_identity = userdata['identity']
-                    user_public_key = userdata['KeyUser']
-                    publickey = self.key.publickey()
-                    response_json = {"Broker": str(self.identiy),
-                                     "User": str(user_identity),
-                                     "UserIP": str(self.addr),
-                                     "KeyBroker": str(publickey.exportKey()),
-                                     "KeyUser": str(user_public_key),
-                                     "ExpirationDate": str(datetime.now()),
-                                     "Info": str(self.credit)}
-                    print self.sign_message(json.dumps(response_json))
+                    vendor = commit['Vendor']
+                    cert = commit['Certificate']
+                    cert_sig = commit['CertificateSignature']
+                    hash_root = commit['HashRoot']
+                    time = commit['Time']
+                    length = commit['Info']
+
+                    # broker = cert['Broker']
+                    # user = cert['User']
+                    # userIP = cert['UserIP']
+                    # keyBroker = cert['KeyBroker']
+                    # keyUser = cert['KeyUser']
+                    # expirationDate = cert['ExpirationDate']
+                    # info = cert['Info']
+
+                    if cert_sig != sign_message(json.dumps(cert)) or\
+                       signature != sign_message(json.dumps(userdata)):
+                        print "Invalid signature"
+                    else:
+                        print "Checking hashes"
+
+                        print "Hashes ok"
+                    
             except:
                 print "Malformed packed"
 
