@@ -8,9 +8,21 @@ class Broker:
 
     HOST = ''   # Symbolic name, meaning all available interfaces
     PORT = 0    # Arbitrary non-privileged port
+    ssl_certfile = "cert.pem"
+    ssl_keyfile = "key.pem"
+
+    def buildSocket(self):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            print 'Socket created'
+        except socket.error, msg:
+            print 'Failed to create socket Error code: ' +\
+                str(msg[0]) + ', Error message: ' + msg[1]
+        return s
 
     def __init__(self, port=9043):
         self.PORT = port
+        self.soc = self.buildSocket()
         pass
 
     def deal_with_client(self, connstream):
@@ -21,34 +33,52 @@ class Broker:
             data = connstream.read()
 
     def serve(self):
-        context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-        context.options |= ssl.OP_NO_SSLv2
-        context.options |= ssl.OP_NO_SSLv3
-        context.load_cert_chain(certfile="cert.pem", keyfile="key.pem")
-
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        print 'Socket created'
-
+        '''
+        Server thread
+        '''
+        err = 0
+        msg = None
         try:
-            s.bind((self.HOST, self.PORT))
-        except socket.error as msg:
-            print 'Bind failed. Error Code : ' \
-                + str(msg[0]) + ' Message ' + msg[1]
-            sys.exit()
-
-        print 'Socket bind complete'
-
-        s.listen(10)
-        print 'Socket now listening'
-
-        while True:
-            newsocket, fromaddr = s.accept()
-            connstream = context.wrap_socket(newsocket, server_side=True)
+            self.soc.bind((self.HOST, self.PORT))
+            print "Bind worked\n"
+        except socket.error, msg:
+            print "Bind failed in server: "\
+                + str(msg[0]) + " Message " + msg[1]
+            err = 1
+        if not err:
             try:
-                self.deal_with_client(connstream)
-            finally:
-                connstream.shutdown(socket.SHUT_RDWR)
-                connstream.close()
+                self.soc.listen(10)
+            except socket.error, msg:
+                print "Listen failed: " + str(msg[0]) + " Message " + msg[1]
+                err = 1
+        if not err:
+            self.conn, self.addr = self.soc.accept()
+            print "Accepted client connection to address "\
+                + str(self.addr) + "\n"
+            try:
+                self.connstream = ssl.wrap_socket(
+                    self.conn,
+                    server_side=True,
+                    certfile=self.ssl_certfile,
+                    keyfile=self.ssl_keyfile,
+                    ssl_version=ssl.PROTOCOL_TLSv1
+                )
+                print "SSL wrap succeeded for sever"
+            except socket.error, msg:
+                if (msg is not None):
+                    print "SSL wrap failed for server: " +\
+                        str(msg[0]) + " Message " + msg[1]
+                err = 1
+
+            while True:
+                data = self.connstream.recv(1024)
+                if data:
+                    print "server: " + data
+                else:
+                    break
+        self.soc.close()
+        self.connstream.close()
+        print "exit server"
 
     def runcmd(self):
         pass

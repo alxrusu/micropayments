@@ -9,28 +9,52 @@ class Vendor:
     packet, reply = "<packet>SOME_DATA</packet>", ""
     HOST = 'localhost'
     PORT = 0
+    ssl_certfile = "cert.pem"
+
+    def buildSocket(self):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            print 'Socket created'
+        except socket.error, msg:
+            print 'Failed to create socket Error code: ' +\
+                str(msg[0]) + ', Error message: ' + msg[1]
+        return s
 
     def __init__(self, port=9043):
         self.PORT = port
+        self.soc = self.buildSocket()
         pass
 
     def contact(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(10)
+        '''
+        Client thread
+        '''
+        err = 0
+        try:
+            self.ssl_sock = ssl.wrap_socket(
+                self.soc,
+                ca_certs=self.ssl_certfile,
+                cert_reqs=ssl.CERT_REQUIRED)
+            print "Wrapped client socket for SSL"
+        except socket.error:
+            print "SSL socket wrapping failed"
+            err = 1
 
-        context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-        context.options |= ssl.OP_NO_SSLv2
-        context.options |= ssl.OP_NO_SSLv3
+        if not err:
+            try:
+                self.ssl_sock.connect((self.HOST, self.PORT))
+                print "client socket connected\n"
+            except socket.error, msg:
+                self.printErr("Socket connection error in client: ", msg)
+                err = 1
 
-        conn = context.wrap_socket(sock, server_hostname=self.HOST)
-        conn.connect((self.HOST, self.PORT))
-        sock.send(self.packet)
-        print sock.recv(1280)
+        if not err:
+            print "send message"
+            self.ssl_sock.sendall("Twas brillig and the slithy toves")
 
-        # CLOSE SOCKET CONNECTION
-        sock.close()
-
-        pass
+        self.soc.close()
+        self.ssl_sock.close()
+        print "exit client"
 
     def serve(self):
         pass
