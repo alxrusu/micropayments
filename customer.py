@@ -8,6 +8,8 @@ import os
 import sys
 import time
 
+import utils
+
 serverCert = ''
 
 class Customer:
@@ -38,27 +40,33 @@ class Customer:
             self.certificateSignature = response['Signature']
             key = RSA.importKey (certificate['KeyBroker'])
 
-            sha1 = hashlib.sha1()
-            sha1.update(json.dumps(certificate))
-            if key.verify (sha1.hexdigest()):
+            if utils.verifySignature (certificate, key, self.certificateSignature):
                 self.certificate = certificate
             else:
                 raise CertificateError('Altered Certificate')
         else:
-            raise CertificateError('Certificate Request Refused')
+            raise CertificateError('Certificate Request Refused: ' + response['Data'])
 
     def payVendor (self, vendor, amount):
 
         while amount > 0:
 
             if vendor not in self.knownVendors:
-                pass
+
+                newCommit = CommitedVendor (vendor)
+                data = newCommit.generateCommit (self.certificate, self.certificateSignature)
+                signature = utils.generateSignature (data, self.privateKey)
+
+                response = utils.getResponse (vendor, 'Commit', data, signature)
+                if response['Response'] != 'OK':
+                    raise VendorError ('Commit Refused: ' + response['Data'])
+
+                self.knownVendors[vendor] = newCommit
 
             try:
                 amount -= self.knownVendors[vendor].sendPayment (amount)
             except PaymentError, e:
-                print (e.arg)
-                break
+                raise e
 
             if self.knownVendors[vendor].lastUsed == 0:
                 del self.knownVendors[vendor]
@@ -86,22 +94,23 @@ class Customer:
                         print (e.arg)
                         sys.exit(-1)
 
-                self.payVendor (vendor, amount)
+                try:
+                    self.payVendor (vendor, amount)
+                except (PaymentError, VendorError) as e:
+                    print (e.arg)
 
             if cmd[0] == 'exit':
                 break
 
-class commitedVendor:
+class CommitedVendor:
 
     def __init__ (self, vendor, chainLen = 100):
         self.vendor = vendor
-        seed = os.urandom(256)
+        data = os.urandom(256)
         self.hashChain = list()
         for i in range (chainLen):
-            sha1 = hashlib.sha1()
-            sha1.update(seed)
-            seed = sha1.hexdigest()
-            self.hashChain[i] = seed
+            data = utils.chainHash (data, 1)
+            self.hashChain.append (data)
         self.lastUsed = chainLen
         self.chainLen = chainLen
 
@@ -115,32 +124,32 @@ class commitedVendor:
 
     def sendPayment (self, amount):
 
-        vendorSocket = socket.socket (socket.AF_INET, socket.SOCK_STREAM)
-        vendorSocket.connect (('localhost', self.vendor))
-
         amount = min (amount, self.lastUsed)
         data = {'Link' : self.hashChain[self.lastUsed - amount], 'Amount' : amount}
-        vendorSocket.send (json.dumps ({'Request': 'Pay', 'Data': data, 'Signature' : ''}).encode('utf-8'))
 
-        response = json.loads(vendorSocket.read(4096).decode('utf-8'))
+        response = utils.getResponse(self.vendor, 'Pay', data, '')
         if response['Response'] == 'OK':
             self.lastUsed -= amount
             print ('Payment successful. Payed %d, Remaining %d' % amount, self.lastUsed)
             return amount
         else:
-            raise PaymentError('Payment Refused')
+            raise PaymentError('Payment Refused: ' + response['Data'])
 
 class PaymentError (RuntimeError):
    def __init__ (self, arg):
       self.arg = arg
 
-class CertificateError (RuntimeError)
+class VendorError (RuntimeError):
+    def __init__(self, arg):
+        self.arg = arg
+
+class CertificateError (RuntimeError):
     def __init__(self, arg):
         self.arg = arg
 
 if __name__ == '__main__':
-    identity = 9043
-    broker = 10000
+    identity = 9000
+    broker = 9043
     try:
         identity = int(sys.argv[1])
         broker = int(sys.argv[2])
