@@ -2,6 +2,11 @@
 import sys
 import socket
 import ssl
+import json
+import hashlib
+import os
+import Crypto.PublicKey.RSA as RSA
+from datetime import datetime
 
 
 class Broker:
@@ -23,6 +28,8 @@ class Broker:
     def __init__(self, port=9043):
         self.PORT = port
         self.soc = self.buildSocket()
+        self.key = RSA.generate(1024, os.urandom)
+        self.credit = 6
         err = 0
         msg = None
         try:
@@ -38,11 +45,59 @@ class Broker:
                 print "Listen failed: " + str(msg[0]) + " Message " + msg[1]
                 err = 1
 
+    def sign_message(self, message):
+        sha1 = hashlib.sha1()
+        sha1.update(message)
+
+        signature = self.key.sign(sha1.hexdigest(), '')
+        return message + str(signature)
+
+    def split_signature(self, message):
+        rev = message[::-1]
+        poz = rev.index("}")
+        return (message[:len(message) - poz],
+                message[len(message) - poz:])
+
     def deal_with_client(self, connstream):
         data = connstream.read()
 
         while data:
-            break
+            try:
+                request = json.loads(data)
+                if request['Request'] == 'Certificate':
+                    userdata = request['Data']
+                    user_identity = userdata['identity']
+                    user_public_key = userdata['KeyUser']
+                    publickey = self.key.publickey()
+                    payword_json = {"Broker": str(self.identiy),
+                                    "User": str(user_identity),
+                                    "UserIP": str(self.addr),
+                                    "KeyBroker": str(publickey.exportKey()),
+                                    "KeyUser": str(user_public_key),
+                                    "ExpirationDate": str(datetime.now()),
+                                    "Info": str(self.credit)}
+                    print self.sign_message(json.dumps(payword_json))
+                elif request['Request'] == 'Redeem':
+                    userdata = request['Data']
+                    commit = userdata['Commit']
+                    last_commit = userdata['LastCommit']
+                    last_commit_index = userdata['LastCommitIndex']
+                    commit = self.split_signature(commit)
+
+                    user_identity = userdata['identity']
+                    user_public_key = userdata['KeyUser']
+                    publickey = self.key.publickey()
+                    response_json = {"Broker": str(self.identiy),
+                                     "User": str(user_identity),
+                                     "UserIP": str(self.addr),
+                                     "KeyBroker": str(publickey.exportKey()),
+                                     "KeyUser": str(user_public_key),
+                                     "ExpirationDate": str(datetime.now()),
+                                     "Info": str(self.credit)}
+                    print self.sign_message(json.dumps(response_json))
+            except:
+                print "Malformed packed"
+
             data = connstream.read()
 
     def ssl_accept(self):
@@ -85,5 +140,8 @@ class Broker:
 
 
 if __name__ == "__main__":
-    broker = Broker()
+
+    broker = Broker(10000)
+    print broker.sign_message("asdf")
+    sys.exit()
     broker.serve()
