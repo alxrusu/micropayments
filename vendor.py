@@ -25,36 +25,44 @@ class Vendor:
         self.soc = self.buildSocket()
         pass
 
-    def contact(self):
-        '''
-        Client thread
-        '''
+    def ssl_connect(self):
         err = 0
         try:
             self.ssl_sock = ssl.wrap_socket(
                 self.soc,
                 ca_certs=self.ssl_certfile,
                 cert_reqs=ssl.CERT_REQUIRED)
-            print "Wrapped client socket for SSL"
+            # print "Wrapped client socket for SSL"
         except socket.error:
-            print "SSL socket wrapping failed"
+            # print "SSL socket wrapping failed"
             err = 1
 
         if not err:
             try:
                 self.ssl_sock.connect((self.HOST, self.PORT))
-                print "client socket connected\n"
-            except socket.error, msg:
-                self.printErr("Socket connection error in client: ", msg)
+                # print "client socket connected\n"
+            except:  # socket.error, msg:
+                # print("Socket connection error in client: ", msg)
                 err = 1
 
-        if not err:
-            print "send message"
-            self.ssl_sock.sendall("Twas brillig and the slithy toves")
+        if err:
+            return False
+        return True
 
+    def ssl_disconnect(self):
         self.soc.close()
         self.ssl_sock.close()
         print "exit client"
+
+    def contact(self):
+        '''
+        Client thread
+        '''
+        if not self.ssl_connect():
+            return
+
+        self.ssl_sock.sendall("Twas brillig and the slithy toves")
+        self.ssl_disconnect()
 
     def serve(self):
         pass

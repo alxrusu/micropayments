@@ -23,24 +23,10 @@ class Broker:
     def __init__(self, port=9043):
         self.PORT = port
         self.soc = self.buildSocket()
-        pass
-
-    def deal_with_client(self, connstream):
-        data = connstream.read()
-
-        while data:
-            break
-            data = connstream.read()
-
-    def serve(self):
-        '''
-        Server thread
-        '''
         err = 0
         msg = None
         try:
             self.soc.bind((self.HOST, self.PORT))
-            print "Bind worked\n"
         except socket.error, msg:
             print "Bind failed in server: "\
                 + str(msg[0]) + " Message " + msg[1]
@@ -51,34 +37,48 @@ class Broker:
             except socket.error, msg:
                 print "Listen failed: " + str(msg[0]) + " Message " + msg[1]
                 err = 1
-        if not err:
-            self.conn, self.addr = self.soc.accept()
-            print "Accepted client connection to address "\
-                + str(self.addr) + "\n"
-            try:
-                self.connstream = ssl.wrap_socket(
-                    self.conn,
-                    server_side=True,
-                    certfile=self.ssl_certfile,
-                    keyfile=self.ssl_keyfile,
-                    ssl_version=ssl.PROTOCOL_TLSv1
-                )
-                print "SSL wrap succeeded for sever"
-            except socket.error, msg:
-                if (msg is not None):
-                    print "SSL wrap failed for server: " +\
-                        str(msg[0]) + " Message " + msg[1]
-                err = 1
 
-            while True:
-                data = self.connstream.recv(1024)
-                if data:
-                    print "server: " + data
-                else:
-                    break
+    def deal_with_client(self, connstream):
+        data = connstream.read()
+
+        while data:
+            break
+            data = connstream.read()
+
+    def ssl_accept(self):
+        self.conn, self.addr = self.soc.accept()
+
+        try:
+            self.connstream = ssl.wrap_socket(
+                self.conn,
+                server_side=True,
+                certfile=self.ssl_certfile,
+                keyfile=self.ssl_keyfile,
+                ssl_version=ssl.PROTOCOL_TLSv1
+            )
+            print "SSL wrap succeeded for sever"
+        except socket.error, msg:
+            if (msg is not None):
+                print "SSL wrap failed for server: " +\
+                    str(msg[0]) + " Message " + msg[1]
+        return True
+
+    def ssl_disconnect(self):
         self.soc.close()
         self.connstream.close()
-        print "exit server"
+
+    def serve(self):
+
+        self.ssl_accept()
+
+        while True:
+            data = self.connstream.recv(1024)
+            if data:
+                print "server: " + data
+            else:
+                break
+
+        self.ssl_disconnect()
 
     def runcmd(self):
         pass
