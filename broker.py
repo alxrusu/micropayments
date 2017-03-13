@@ -13,9 +13,18 @@ class Broker:
         self.PORT = port
         pass
 
+    def deal_with_client(self, connstream):
+        data = connstream.read()
+
+        while data:
+            break
+            data = connstream.read()
+
     def serve(self):
-        context = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
-        context.load_cert_chain(certfile="cert.pem")
+        context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+        context.options |= ssl.OP_NO_SSLv2
+        context.options |= ssl.OP_NO_SSLv3
+        context.load_cert_chain(certfile="cert.pem", keyfile="key.pem")
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         print 'Socket created'
@@ -32,15 +41,14 @@ class Broker:
         s.listen(10)
         print 'Socket now listening'
 
-        while 1:
-            conn, addr = s.accept()
-            sslsoc = context.wrap_socket(s, server_side=True)
-            print 'Connected with ' + addr[0] + ':' + str(addr[1])
-            request = sslsoc.read()
-            print request
-
-        s.close()
-        pass
+        while True:
+            newsocket, fromaddr = s.accept()
+            connstream = context.wrap_socket(newsocket, server_side=True)
+            try:
+                self.deal_with_client(connstream)
+            finally:
+                connstream.shutdown(socket.SHUT_RDWR)
+                connstream.close()
 
     def runcmd(self):
         pass
