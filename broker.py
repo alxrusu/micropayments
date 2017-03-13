@@ -17,7 +17,6 @@ class Broker:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         print 'Socket created'
 
-        # Bind socket to local host and port
         try:
             s.bind((self.HOST, self.PORT))
         except socket.error as msg:
@@ -27,13 +26,10 @@ class Broker:
 
         print 'Socket bind complete'
 
-        # Start listening on socket
         s.listen(10)
         print 'Socket now listening'
 
-        # now keep talking with the client
         while 1:
-            # wait to accept a connection - blocking call
             conn, addr = s.accept()
             print 'Connected with ' + addr[0] + ':' + str(addr[1])
 
@@ -42,3 +38,8 @@ class Broker:
 
     def runcmd(self):
         pass
+
+
+if __name__ == "__main__":
+    broker = Broker()
+    broker.serve()
