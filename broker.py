@@ -13,8 +13,6 @@ class Broker:
 
     HOST = ''   # Symbolic name, meaning all available interfaces
     PORT = 0    # Arbitrary non-privileged port
-    ssl_certfile = "cert.pem"
-    ssl_keyfile = "key.pem"
 
     def buildSocket(self):
         try:
@@ -108,8 +106,8 @@ class Broker:
             self.connstream = ssl.wrap_socket(
                 self.conn,
                 server_side=True,
-                certfile=self.ssl_certfile,
-                keyfile=self.ssl_keyfile,
+                certfile=ssl_certfile,
+                keyfile=ssl_keyfile,
                 ssl_version=ssl.PROTOCOL_TLSv1
             )
             print "SSL wrap succeeded for sever"

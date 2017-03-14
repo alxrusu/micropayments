@@ -14,7 +14,7 @@ def generateSignature(data, privateKey):
 
 
 def verifySignature(data, publicKey, signature):
-    publicKey =RSA.importKey(publicKey)
+    publicKey = RSA.importKey(publicKey)
     sha1 = hashlib.sha1()
     sha1.update(json.dumps(data))
     return publicKey.verify(sha1.hexdigest(), signature)
@@ -34,6 +34,8 @@ def getResponse(port, request, data, signature):
     s.connect(('localhost', port))
     s.send(json.dumps({'Request': request, 'Data': data,
                        'Signature': signature}).encode('utf-8'))
-    response = json.loads(s.read(4096).decode('utf-8'))
+    raw_response = s.recv(4096).decode('utf-8')
+    print "\n\n" + raw_response + "\n\n"
+    response = json.loads(raw_response)
     s.close()
     return response

@@ -29,7 +29,9 @@ class Customer:
 
         brokerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         brokerSocket_ssl = ssl.wrap_socket(
-            brokerSocket, ca_certs=utils.ssl_certfile, cert_reqs=ssl.CERT_REQUIRED)
+            brokerSocket,
+            ca_certs=utils.ssl_certfile,
+            cert_reqs=ssl.CERT_REQUIRED)
         brokerSocket_ssl.connect(('localhost', self.broker))
 
         data = {'Identity': self.identity,
@@ -70,7 +72,8 @@ class Customer:
                 response = utils.getResponse(vendor, 'Commit', data, signature)
                 if response['Response'] != 'OK':
                     raise VendorError('Commit Refused: ' + response['Data'])
-
+                else:
+                    print response['Data']
                 self.knownVendors[vendor] = newCommit
 
             try:
@@ -146,8 +149,9 @@ class CommittedVendor:
         response = utils.getResponse(self.vendor, 'Pay', data, '')
         if response['Response'] == 'OK':
             self.lastUsed -= amount
-            print ('Payment successful. Payed %d, Remaining %d' %
-                   amount, self.lastUsed)
+            print ('Payment successful. Payed' +
+                   str(amount) + ', Remaining ' +
+                   str(self.lastUsed))
             return amount
         else:
             raise PaymentError('Payment Refused: ' + response['Data'])
