@@ -31,21 +31,10 @@ class Customer:
 
     def requestCertificate(self):
 
-        brokerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        brokerSocket_ssl = ssl.wrap_socket(
-            brokerSocket,
-            ca_certs=utils.ssl_certfile,
-            cert_reqs=ssl.CERT_REQUIRED)
-        brokerSocket_ssl.connect(('localhost', self.broker))
-
         data = {'Identity': self.identity,
                 'KeyUser': self.publicKey.exportKey()}
-        brokerSocket_ssl.send(json.dumps(
-            {'Request': 'Certificate',
-             'Data': data,
-             'Signature': ''}).encode('utf-8'))
 
-        response = json.loads(brokerSocket_ssl.read(4096).decode('utf-8'))
+        response = utils.getSSLResponse (self.broker, 'Certificate', data, '')
         if response['Response'] == 'OK':
 
             certificate = response['Data']

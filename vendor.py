@@ -101,8 +101,9 @@ class Vendor:
                             'CertificateSignature': customerCommit.commit['Certificate']['KeyBroker'],
                             'Hash': customerCommit.lastLink,
                             'Amount': customerCommit.amount}
-                    response = utils.getResponse(
-                        customerCommit.commit['Certificate']['Broker'], 'Redeem', data, '')
+                    response = utils.getSSLResponse(
+                        int(customerCommit.commit['Certificate']['Broker']),
+                        'Redeem', data, '')
                     print ('Trying to redeem ' + customerCommit.amount +
                            ' from certificate ' + str(customerCommit.commit['Certificate']))
                     if response['Response'] == 'OK':
