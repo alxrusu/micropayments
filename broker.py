@@ -1,13 +1,12 @@
 '''This script will serve as a broker server in the micropayments scheme'''
-import sys
 import socket
 import ssl
 import json
-import hashlib
 import os
 import Crypto.PublicKey.RSA as RSA
 from datetime import datetime
 from utils import *
+from threading import Thread
 
 
 class Broker:
@@ -31,6 +30,7 @@ class Broker:
         self.soc = self.buildSocket()
         self.key = RSA.generate(1024, os.urandom)
         self.credit = 6
+        self.identiy = self.PORT
         err = 0
         msg = None
         try:
@@ -49,56 +49,57 @@ class Broker:
     def deal_with_client(self, connstream):
         data = connstream.read()
 
-        while data:
-            try:
-                request = json.loads(data)
-                if request['Request'] == 'Certificate':
-                    userdata = request['Data']
-                    user_identity = userdata['identity']
-                    user_public_key = userdata['KeyUser']
-                    publickey = self.key.publickey()
-                    payword_json = {"Broker": str(self.identiy),
-                                    "User": str(user_identity),
-                                    "UserIP": str(self.addr),
-                                    "KeyBroker": str(publickey.exportKey()),
-                                    "KeyUser": str(user_public_key),
-                                    "ExpirationDate": str(datetime.now()),
-                                    "Info": str(self.credit)}
-                    print sign_message(json.dumps(payword_json))
-                elif request['Request'] == 'Redeem':
-                    userdata = request['Data']
-                    signature = request['Signature']
-                    commit = userdata['Commit']
-                    last_commit = userdata['LastCommit']
-                    last_commit_index = userdata['LastCommitIndex']
+        print data
+        request = json.loads(data)
+        if request['Request'] == 'Certificate':
+            userdata = request['Data']
+            user_identity = userdata['Identity']
+            user_public_key = userdata['KeyUser']
+            publickey = self.key.publickey()
+            payword_json = {"Broker": str(self.identiy),
+                            "User": str(user_identity),
+                            "UserIP": str(self.addr),
+                            "KeyBroker": str(publickey.exportKey()),
+                            "KeyUser": str(user_public_key),
+                            "ExpirationDate": str(datetime.now()),
+                            "Info": str(self.credit)}
+            cert_sig = generateSignature(
+                payword_json, self.key)
+            print "\n\n" + json.dumps(payword_json) + "\n\n"
+            connstream.send(json.dumps(
+                {'Response': 'OK',
+                 'Data': payword_json,
+                 'Signature': cert_sig}).encode('utf-8'))
+        elif request['Request'] == 'Redeem':
+            userdata = request['Data']
+            signature = request['Signature']
+            commit = userdata['Commit']
+            # last_commit = userdata['LastCommit']
+            # last_commit_index = userdata['LastCommitIndex']
 
-                    vendor = commit['Vendor']
-                    cert = commit['Certificate']
-                    cert_sig = commit['CertificateSignature']
-                    hash_root = commit['HashRoot']
-                    time = commit['Time']
-                    length = commit['Info']
+            # vendor = commit['Vendor']
+            cert = commit['Certificate']
+            cert_sig = commit['CertificateSignature']
+            # hash_root = commit['HashRoot']
+            # time = commit['Time']
+            # length = commit['Info']
 
-                    # broker = cert['Broker']
-                    # user = cert['User']
-                    # userIP = cert['UserIP']
-                    # keyBroker = cert['KeyBroker']
-                    # keyUser = cert['KeyUser']
-                    # expirationDate = cert['ExpirationDate']
-                    # info = cert['Info']
+            # broker = cert['Broker']
+            # user = cert['User']
+            # userIP = cert['UserIP']
+            # keyBroker = cert['KeyBroker']
+            # keyUser = cert['KeyUser']
+            # expirationDate = cert['ExpirationDate']
+            # info = cert['Info']
 
-                    if cert_sig != sign_message(json.dumps(cert)) or\
-                       signature != sign_message(json.dumps(userdata)):
-                        print "Invalid signature"
-                    else:
-                        print "Checking hashes"
+            if cert_sig != generateSignature(cert, self.key) or\
+               signature != generateSignature(userdata, self.key):
+                print "Invalid signature"
+            else:
+                print "Checking hashes"
 
-                        print "Hashes ok"
-                    
-            except:
-                print "Malformed packed"
-
-            data = connstream.read()
+                print "Hashes ok"
+        self.ssl_disconnect()
 
     def ssl_accept(self):
         self.conn, self.addr = self.soc.accept()
@@ -119,21 +120,14 @@ class Broker:
         return True
 
     def ssl_disconnect(self):
-        self.soc.close()
         self.connstream.close()
 
     def serve(self):
-
-        self.ssl_accept()
-
         while True:
-            data = self.connstream.recv(1024)
-            if data:
-                print "server: " + data
-            else:
-                break
-
-        self.ssl_disconnect()
+            self.ssl_accept()
+            thread = Thread(target=self.deal_with_client,
+                            args=(self.connstream,))
+            thread.start()
 
     def runcmd(self):
         pass
@@ -141,7 +135,6 @@ class Broker:
 
 if __name__ == "__main__":
 
-    broker = Broker(10000)
-    print broker.sign_message("asdf")
-    sys.exit()
+    broker = Broker(9043)
+
     broker.serve()
