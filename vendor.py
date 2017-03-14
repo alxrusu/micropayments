@@ -6,6 +6,7 @@ from threading import Thread
 import json
 import time
 
+
 class Vendor:
 
     HOST = ''
@@ -33,14 +34,17 @@ class Vendor:
                 commit = CommittedConsumer(
                     self.PORT, request['Data'], request['Signature'])
             except AssertionError:
-                connstream.send(json.dumps(
-                    {'Response': 'Error', 'Data': 'Invalid Commit', 'Signature': ''}).encode('utf-8'))
+                connstream.send(json.dumps({'Response': 'Error',
+                                            'Data': 'Invalid Commit',
+                                            'Signature': ''}).encode('utf-8'))
             else:
                 if identity not in self.knownCustomers:
                     self.knownCustomers[identity] = list()
                 self.knownCustomers[identity].insert(0, commit)
-                connstream.send(json.dumps(
-                    {'Response': 'OK', 'Data': 'Accepted', 'Signature': ''}).encode('utf-8'))
+                connstream.send(
+                    json.dumps({'Response': 'OK',
+                                'Data': 'Accepted',
+                                'Signature': ''}).encode('utf-8'))
 
         if request['Request'] == "Pay":
             print "Payment registered"
@@ -55,17 +59,25 @@ class Vendor:
                                   'Data']['Amount'])
             except AssertionError:
                 connstream.send(
-                    json.dumps({'Response': 'Error', 'Data': 'Commit Expired', 'Signature': ''}).encode('utf-8'))
+                    json.dumps({'Response': 'Error',
+                                'Data': 'Commit Expired',
+                                'Signature': ''}).encode('utf-8'))
             except KeyError as k:
                 print "Key error", k
                 connstream.send(
-                    json.dumps({'Response': 'Error', 'Data': 'Commit Missing', 'Signature': ''}).encode('utf-8'))
+                    json.dumps({'Response': 'Error',
+                                'Data': 'Commit Missing',
+                                'Signature': ''}).encode('utf-8'))
             except PaymentError:
                 connstream.send(
-                    json.dumps({'Response': 'Error', 'Data': 'Invalid Payment', 'Signature': ''}).encode('utf-8'))
+                    json.dumps({'Response': 'Error',
+                                'Data': 'Invalid Payment',
+                                'Signature': ''}).encode('utf-8'))
             else:
                 connstream.send(json.dumps(
-                    {'Response': 'OK', 'Data': 'Payment Completed', 'Signature': ''}).encode('utf-8'))
+                    {'Response': 'OK',
+                     'Data': 'Payment Completed',
+                     'Signature': ''}).encode('utf-8'))
 
         connstream.close()
 
@@ -87,7 +99,7 @@ class Vendor:
 
                 try:
                     consumer = int(cmd[1])
-                    consumer = str (consumer)
+                    consumer = str(consumer)
                     commitList = self.knownCustomers[consumer]
                 except KeyError:
                     print ('No payments for user ' + consumer)
@@ -97,15 +109,18 @@ class Vendor:
                     continue
 
                 for customerCommit in commitList:
-                    data = {'Certificate': customerCommit.commit['Certificate'],
-                            'CertificateSignature': customerCommit.commit['Certificate']['KeyBroker'],
+                    data = {'Certificate':
+                            customerCommit.commit['Certificate'],
+                            'CertificateSignature':
+                            customerCommit.commit['Certificate']['KeyBroker'],
                             'Hash': customerCommit.lastLink,
                             'Amount': customerCommit.amount}
                     response = utils.getSSLResponse(
                         int(customerCommit.commit['Certificate']['Broker']),
                         'Redeem', data, '')
                     print ('Trying to redeem ' + customerCommit.amount +
-                           ' from certificate ' + str(customerCommit.commit['Certificate']))
+                           ' from certificate ' +
+                           str(customerCommit.commit['Certificate']))
                     if response['Response'] == 'OK':
                         print ('Redeem successful')
                     else:

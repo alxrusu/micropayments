@@ -1,7 +1,5 @@
 '''This script will serve as a customer client in the micropayments scheme'''
-import ssl
 import Crypto.PublicKey.RSA as RSA
-import socket
 import json
 import os
 import sys
@@ -34,7 +32,7 @@ class Customer:
         data = {'Identity': self.identity,
                 'KeyUser': self.publicKey.exportKey()}
 
-        response = utils.getSSLResponse (self.broker, 'Certificate', data, '')
+        response = utils.getSSLResponse(self.broker, 'Certificate', data, '')
         if response['Response'] == 'OK':
 
             certificate = response['Data']
@@ -89,7 +87,8 @@ class Customer:
                     amount -= self.knownVendors[
                         vendor].sendLinkFraudPayment(amount)
                 else:
-                    amount -= self.knownVendors[vendor].sendPayment(self.identity, amount)
+                    amount -= self.knownVendors[
+                        vendor].sendPayment(self.identity, amount)
             except PaymentError, e:
                 raise e
 
@@ -168,8 +167,8 @@ class CommittedVendor:
 
         amount = min(amount, self.lastUsed)
         data = {'Identity': str(identity),
-            'Link': self.hashChain[self.lastUsed - amount],
-            'Amount': amount}
+                'Link': self.hashChain[self.lastUsed - amount],
+                'Amount': amount}
 
         response = utils.getResponse(self.vendor, 'Pay', data, '')
         if response['Response'] == 'OK':

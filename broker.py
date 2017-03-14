@@ -79,23 +79,33 @@ class Broker:
 
             if cert['Broker'] != str(self.identity):
                 connstream.send(
-                    json.dumps({'Response': 'Error', 'Data': 'Invalid Broker', 'Signature': ''}).encode('utf-8'))
+                    json.dumps({'Response': 'Error',
+                                'Data': 'Invalid Broker',
+                                'Signature': ''}).encode('utf-8'))
             elif cert['KeyBroker'] != str(self.key.publickey().exportKey()):
                 connstream.send(
-                    json.dumps({'Response': 'Error', 'Data': 'Forged Key', 'Signature': ''}).encode('utf-8'))
-            elif not verifySignature (cert, self.key, cert_sig):
+                    json.dumps({'Response': 'Error',
+                                'Data': 'Forged Key',
+                                'Signature': ''}).encode('utf-8'))
+            elif not verifySignature(cert, self.key, cert_sig):
                 connstream.send(
-                    json.dumps({'Response': 'Error', 'Data': 'Invalid Signature', 'Signature': ''}).encode('utf-8'))
+                    json.dumps({'Response': 'Error',
+                                'Data': 'Invalid Signature',
+                                'Signature': ''}).encode('utf-8'))
             else:
                 if port not in self.vendors:
                     self.vendors[port] = list()
                 if commit['HashRoot'] in self.vendors[port]:
                     connstream.send(
-                        json.dumps({'Response': 'Error', 'Data': 'Already Redeemed', 'Signature': ''}).encode('utf-8'))
+                        json.dumps({'Response': 'Error',
+                                    'Data': 'Already Redeemed',
+                                    'Signature': ''}).encode('utf-8'))
                 else:
                     self.vendors[port].append(commit['HashRoot'])
                     connstream.send(
-                        json.dumps({'Response': 'Error', 'Data': 'Redeem Successful', 'Signature': ''}).encode('utf-8'))
+                        json.dumps({'Response': 'Error',
+                                    'Data': 'Redeem Successful',
+                                    'Signature': ''}).encode('utf-8'))
 
         self.ssl_disconnect()
 
