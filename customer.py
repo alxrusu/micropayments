@@ -9,6 +9,9 @@ import time
 
 import utils
 
+CERTIFICATE_FRAUD = 1
+LINK_FRAUD = 2
+
 if sys.version_info[0] < 3:
     input = raw_input
 
@@ -16,7 +19,6 @@ if sys.version_info[0] < 3:
 class Customer:
 
     def __init__(self, identity, broker):
-
         self.privateKey = RSA.generate(1024, os.urandom)
         self.publicKey = self.privateKey.publickey()
         self.identity = identity
@@ -24,6 +26,7 @@ class Customer:
         self.certificate = None
         self.certificateSignature = None
         self.knownVendors = dict()
+        self.fraud = 0
 
     def requestCertificate(self):
 
@@ -60,13 +63,21 @@ class Customer:
 
     def payVendor(self, vendor, amount, fraud):
 
+        self.fraud = fraud
+
         while amount > 0:
 
             if vendor not in self.knownVendors:
 
                 newCommit = CommittedVendor(vendor)
-                data = newCommit.generateCommit(
-                    self.certificate, self.certificateSignature)
+                certificate_copy = dict(self.certificate)
+                certificate_copy['Broker'] = "NotScamAtAll"
+                if CERTIFICATE_FRAUD & fraud:
+                    data = newCommit.generateCommit(
+                        certificate_copy, self.certificateSignature)
+                else:
+                    data = newCommit.generateCommit(
+                        self.certificate, self.certificateSignature)
                 signature = utils.generateSignature(data, self.privateKey)
 
                 response = utils.getResponse(vendor, 'Commit', data, signature)
@@ -77,7 +88,11 @@ class Customer:
                 self.knownVendors[vendor] = newCommit
 
             try:
-                amount -= self.knownVendors[vendor].sendPayment(amount)
+                if LINK_FRAUD & fraud:
+                    amount -= self.knownVendors[
+                        vendor].sendLinkFraudPayment(amount)
+                else:
+                    amount -= self.knownVendors[vendor].sendPayment(amount)
             except PaymentError, e:
                 raise e
 
@@ -135,6 +150,15 @@ class CommittedVendor:
         self.lastUsed = chainLen
         self.chainLen = chainLen
 
+    def genHashChain(self, chainLen=100):
+        data = os.urandom(256)
+        hashChain = list()
+
+        for i in range(chainLen):
+            data = utils.chainHash(data, 1)
+            hashChain.append(data)
+        return hashChain
+
     def generateCommit(self, certificate, signature):
         return {'Vendor': self.vendor,
                 'Certificate': certificate,
@@ -147,6 +171,21 @@ class CommittedVendor:
 
         amount = min(amount, self.lastUsed)
         data = {'Link': self.hashChain[
+            self.lastUsed - amount], 'Amount': amount}
+
+        response = utils.getResponse(self.vendor, 'Pay', data, '')
+        if response['Response'] == 'OK':
+            self.lastUsed -= amount
+            print ('Payment successful. Payed' +
+                   str(amount) + ', Remaining ' +
+                   str(self.lastUsed))
+            return amount
+        else:
+            raise PaymentError('Payment Refused: ' + response['Data'])
+
+    def sendLinkFraudPayment(self, amount, fraud):
+        amount = min(amount, self.lastUsed)
+        data = {'Link': self.genHashChain[
             self.lastUsed - amount], 'Amount': amount}
 
         response = utils.getResponse(self.vendor, 'Pay', data, '')
