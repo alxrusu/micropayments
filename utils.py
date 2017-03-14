@@ -1,3 +1,4 @@
+import Crypto.PublicKey.RSA as RSA
 import socket
 import hashlib
 import json
@@ -13,6 +14,7 @@ def generateSignature(data, privateKey):
 
 
 def verifySignature(data, publicKey, signature):
+    publicKey =RSA.importKey(publicKey)
     sha1 = hashlib.sha1()
     sha1.update(json.dumps(data))
     return publicKey.verify(sha1.hexdigest(), signature)

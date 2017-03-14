@@ -13,12 +13,10 @@ if sys.version_info[0] < 3:
     input = raw_input
 
 
-serverCert = 'cert.pem'
-
-
 class Customer:
 
     def __init__(self, identity, broker):
+
         self.privateKey = RSA.generate(1024, os.urandom)
         self.publicKey = self.privateKey.publickey()
         self.identity = identity
@@ -28,9 +26,10 @@ class Customer:
         self.knownVendors = dict()
 
     def requestCertificate(self):
+
         brokerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         brokerSocket_ssl = ssl.wrap_socket(
-            brokerSocket, ca_certs=serverCert, cert_reqs=ssl.CERT_REQUIRED)
+            brokerSocket, ca_certs=utils.ssl_certfile, cert_reqs=ssl.CERT_REQUIRED)
         brokerSocket_ssl.connect(('localhost', self.broker))
 
         data = {'Identity': self.identity,
@@ -45,10 +44,10 @@ class Customer:
 
             certificate = response['Data']
             self.certificateSignature = response['Signature']
-            key = RSA.importKey(certificate['KeyBroker'])
+
             print "\n\n" + json.dumps(certificate) + "\n\n"
             if utils.verifySignature(certificate,
-                                     key,
+                                     certificate['KeyBroker'],
                                      self.certificateSignature):
                 self.certificate = certificate
             else:
@@ -63,7 +62,7 @@ class Customer:
 
             if vendor not in self.knownVendors:
 
-                newCommit = CommitedVendor(vendor)
+                newCommit = CommittedVendor(vendor)
                 data = newCommit.generateCommit(
                     self.certificate, self.certificateSignature)
                 signature = utils.generateSignature(data, self.privateKey)
@@ -115,15 +114,18 @@ class Customer:
                 break
 
 
-class CommitedVendor:
+class CommittedVendor:
 
     def __init__(self, vendor, chainLen=100):
+
         self.vendor = vendor
         data = os.urandom(256)
         self.hashChain = list()
+
         for i in range(chainLen):
             data = utils.chainHash(data, 1)
             self.hashChain.append(data)
+
         self.lastUsed = chainLen
         self.chainLen = chainLen
 
@@ -167,6 +169,7 @@ class CertificateError (RuntimeError):
 
 
 if __name__ == '__main__':
+
     identity = 9000
     broker = 9043
     try:
