@@ -45,7 +45,7 @@ class Broker:
                 print "Listen failed: " + str(msg[0]) + " Message " + msg[1]
                 err = 1
 
-    def deal_with_client(self, connstream, port):
+    def deal_with_client(self, connstream):
         data = connstream.recv(4096)
 
         request = json.loads(data)
@@ -76,6 +76,7 @@ class Broker:
         elif request['Request'] == 'Redeem':
             data = request['Data']
             commit = data['Commit']
+            vendor = commit['Vendor']
             cert = commit['Certificate']
             cert_sig = commit['CertificateSignature']
 
@@ -98,19 +99,25 @@ class Broker:
                                 'Data': 'Invalid Signature',
                                 'Signature': ''}).encode('utf-8'))
             else:
-                if port not in self.vendors:
-                    self.vendors[port] = list()
-                if commit['HashRoot'] in self.vendors[port]:
+                if vendor not in self.vendors:
+                    self.vendors[vendor] = list()
+                if commit['HashRoot'] in self.vendors[vendor]:
                     connstream.send(
                         json.dumps({'Response': 'Error',
                                     'Data': 'Already Redeemed',
                                     'Signature': ''}).encode('utf-8'))
                 else:
-                    self.vendors[port].append(commit['HashRoot'])
-                    connstream.send(
-                        json.dumps({'Response': 'OK',
-                                    'Data': 'Redeem Successful',
-                                    'Signature': ''}).encode('utf-8'))
+                    if chainHash (data['Hash'], data['Amount']) != commit['HashRoot']:
+                        connstream.send(
+                            json.dumps({'Response': 'Error',
+                                        'Data': 'Invalid Hash',
+                                        'Signature': ''}).encode('utf-8'))
+                    else:
+                        self.vendors[vendor].append(commit['HashRoot'])
+                        connstream.send(
+                            json.dumps({'Response': 'OK',
+                                        'Data': 'Redeem Successful',
+                                        'Signature': ''}).encode('utf-8'))
 
         self.ssl_disconnect()
 
@@ -139,7 +146,7 @@ class Broker:
         while True:
             self.ssl_accept()
             thread = Thread(target=self.deal_with_client,
-                            args=(self.connstream, self.addr[1]))
+                            args=(self.connstream,))
             thread.start()
 
     def runcmd(self):

@@ -108,8 +108,6 @@ class Vendor:
                     continue
 
                 for customerCommit in commitList:
-                    print "\n\nDumping commit json\n\n" + \
-                        json.dumps(customerCommit.commit)
                     data = {'Commit':
                             customerCommit.commit,
                             'Hash': customerCommit.lastLink,
