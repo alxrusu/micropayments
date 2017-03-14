@@ -20,40 +20,51 @@ class Vendor:
         networking.start()
 
     def deal_with_client(self, connstream, port):
-
+        port = str(port)
         data = connstream.recv(4096)
-        request = json.loads(data).decode('utf-8')
+        request = json.loads(data.decode('utf-8'))
         print data
 
         if request['Request'] == "Commit":
             print "Commit registered"
 
             try:
-                commit = CommittedConsumer (self.PORT, request['Data'], request['Signature'])
+                commit = CommittedConsumer(
+                    self.PORT, request['Data'], request['Signature'])
             except AssertionError:
-                connstream.send(json.dumps({'Response': 'Error', 'Data': 'Invalid Commit', 'Signature': ''}).encode('utf-8'))
+                connstream.send(json.dumps(
+                    {'Response': 'Error', 'Data': 'Invalid Commit', 'Signature': ''}).encode('utf-8'))
             else:
-                self.knownCustomers[port].insert (0, commit)
-                connstream.send(json.dumps({'Response': 'OK', 'Data': 'Accepted', 'Signature':''}).encode('utf-8'))
+                try:
+                    self.knownCustomers[port].insert(0, commit)
+                except:
+                    self.knownCustomers[port] = list()
+                    self.knownCustomers[port].insert(0, commit)
+                connstream.send(json.dumps(
+                    {'Response': 'OK', 'Data': 'Accepted', 'Signature': ''}).encode('utf-8'))
 
         if request['Request'] == "Pay":
             print "Payment registered"
 
             try:
-                commit = self.knownCustomers[port][0]
+                #ommit = self.knownCustomers[port][0]
+
                 commit.isValid()
-                commit.getPayment (request['Data']['Link'], request['Data']['Amount'])
+                commit.getPayment(request['Data']['Link'], request[
+                                  'Data']['Amount'])
             except AssertionError:
                 connstream.send(
                     json.dumps({'Response': 'Error', 'Data': 'Commit Expired', 'Signature': ''}).encode('utf-8'))
-            except KeyError:
+            except KeyError as k:
+                print "Key error", k
                 connstream.send(
                     json.dumps({'Response': 'Error', 'Data': 'Commit Missing', 'Signature': ''}).encode('utf-8'))
             except PaymentError:
                 connstream.send(
                     json.dumps({'Response': 'Error', 'Data': 'Invalid Payment', 'Signature': ''}).encode('utf-8'))
             else:
-                connstream.send(json.dumps({'Response': 'OK', 'Data': 'Payment Completed', 'Signature':''}).encode('utf-8'))
+                connstream.send(json.dumps(
+                    {'Response': 'OK', 'Data': 'Payment Completed', 'Signature': ''}).encode('utf-8'))
 
         connstream.close()
 
@@ -83,12 +94,14 @@ class Vendor:
                     print ('No payments for user ' + consumer)
 
                 for commit in commitList:
-                    data = {'Certificate' : commit['Certificate'],
-                            'CertificateSignature' : commit['Certificate']['KeyBroker'],
-                            'Hash' : commit.lastLink,
-                            'Amount' : commit.amount}
-                    response = utils.getResponse (commit.commit['Broker'], 'Redeem', data, '')
-                    print ('Trying to redeem ' + commit.amount + ' from certificate ' + str(commit['Certificate']))
+                    data = {'Certificate': commit['Certificate'],
+                            'CertificateSignature': commit['Certificate']['KeyBroker'],
+                            'Hash': commit.lastLink,
+                            'Amount': commit.amount}
+                    response = utils.getResponse(
+                        commit.commit['Broker'], 'Redeem', data, '')
+                    print ('Trying to redeem ' + commit.amount +
+                           ' from certificate ' + str(commit['Certificate']))
                     if response['Response'] == 'OK':
                         print ('Redeem successful')
                     else:
@@ -127,7 +140,7 @@ class CommittedConsumer:
         assert utils.verifySignature(
             self.commit['Certificate'],
             self.commit['Certificate']['KeyBroker'],
-            self.commit['Certificate']['CertificateSignature'])
+            self.commit['CertificateSignature'])
 
     def isValid(self, signature):
         assert self.commit['Date'] < self.commit[
