@@ -2,13 +2,16 @@
 import ssl
 import Crypto.PublicKey.RSA as RSA
 import socket
-import hashlib
 import json
 import os
 import sys
 import time
 
 import utils
+
+if sys.version_info[0] < 3:
+    input = raw_input
+
 
 serverCert = 'cert.pem'
 
@@ -83,7 +86,7 @@ class Customer:
 
         while True:
 
-            cmd = raw_input()
+            cmd = input()
             cmd = cmd.split(' ')
 
             if cmd[0] == 'pay':
