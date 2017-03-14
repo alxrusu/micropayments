@@ -11,6 +11,7 @@ import utils
 
 CERTIFICATE_FRAUD = 1
 LINK_FRAUD = 2
+PAYWORD_FRAUD = 4
 
 if sys.version_info[0] < 3:
     input = raw_input
@@ -80,7 +81,14 @@ class Customer:
                         self.certificate, self.certificateSignature)
                 signature = utils.generateSignature(data, self.privateKey)
 
-                response = utils.getResponse(vendor, 'Commit', data, signature)
+                data_copy = dict(data)
+                if PAYWORD_FRAUD & fraud:
+                    data_copy['Date'] = 'ieri'
+                    response = utils.getResponse(
+                        vendor, 'Commit', data_copy, signature)
+                else:
+                    response = utils.getResponse(
+                        vendor, 'Commit', data, signature)
                 if response['Response'] != 'OK':
                     raise VendorError('Commit Refused: ' + response['Data'])
                 else:
