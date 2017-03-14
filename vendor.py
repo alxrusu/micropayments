@@ -4,7 +4,7 @@ import sys
 import utils
 from threading import Thread
 import json
-
+import time
 
 class Vendor:
 
@@ -19,15 +19,16 @@ class Vendor:
         networking = Thread(target=self.serve)
         networking.start()
 
-    def deal_with_client(self, connstream, port):
-        port = str(port)
+    def deal_with_client(self, connstream):
+
         data = connstream.recv(4096)
         request = json.loads(data.decode('utf-8'))
-        print data
+        print request
 
         if request['Request'] == "Commit":
             print "Commit registered"
 
+            identity = request['Data']['Certificate']['User']
             try:
                 commit = CommittedConsumer(
                     self.PORT, request['Data'], request['Signature'])
@@ -35,19 +36,19 @@ class Vendor:
                 connstream.send(json.dumps(
                     {'Response': 'Error', 'Data': 'Invalid Commit', 'Signature': ''}).encode('utf-8'))
             else:
-                try:
-                    self.knownCustomers[port].insert(0, commit)
-                except:
-                    self.knownCustomers[port] = list()
-                    self.knownCustomers[port].insert(0, commit)
+                if identity not in self.knownCustomers:
+                    self.knownCustomers[identity] = list()
+                self.knownCustomers[identity].insert(0, commit)
                 connstream.send(json.dumps(
                     {'Response': 'OK', 'Data': 'Accepted', 'Signature': ''}).encode('utf-8'))
 
         if request['Request'] == "Pay":
             print "Payment registered"
 
+            identity = request['Data']['Identity']
             try:
-                #ommit = self.knownCustomers[port][0]
+                commit = self.knownCustomers[identity]
+                commit = commit[0]
 
                 commit.isValid()
                 commit.getPayment(request['Data']['Link'], request[
@@ -72,7 +73,7 @@ class Vendor:
         while True:
             conn, addr = self.soc.accept()
             thread = Thread(target=self.deal_with_client,
-                            args=(conn, addr[1]))
+                            args=(conn, ))
             thread.start()
 
     def runcmd(self):
@@ -86,22 +87,24 @@ class Vendor:
 
                 try:
                     consumer = int(cmd[1])
+                    consumer = str (consumer)
                     commitList = self.knownCustomers[consumer]
-                except ValueError:
-                    print ('Invalid Command')
-                    continue
                 except KeyError:
                     print ('No payments for user ' + consumer)
+                    continue
+                except:
+                    print ('Invalid Command')
+                    continue
 
-                for commit in commitList:
-                    data = {'Certificate': commit['Certificate'],
-                            'CertificateSignature': commit['Certificate']['KeyBroker'],
-                            'Hash': commit.lastLink,
-                            'Amount': commit.amount}
+                for customerCommit in commitList:
+                    data = {'Certificate': customerCommit.commit['Certificate'],
+                            'CertificateSignature': customerCommit.commit['Certificate']['KeyBroker'],
+                            'Hash': customerCommit.lastLink,
+                            'Amount': customerCommit.amount}
                     response = utils.getResponse(
-                        commit.commit['Broker'], 'Redeem', data, '')
-                    print ('Trying to redeem ' + commit.amount +
-                           ' from certificate ' + str(commit['Certificate']))
+                        customerCommit.commit['Certificate']['Broker'], 'Redeem', data, '')
+                    print ('Trying to redeem ' + customerCommit.amount +
+                           ' from certificate ' + str(customerCommit.commit['Certificate']))
                     if response['Response'] == 'OK':
                         print ('Redeem successful')
                     else:
@@ -111,6 +114,7 @@ class Vendor:
 
                 try:
                     consumer = int(cmd[1])
+                    consumer = str(consumer)
                 except ValueError:
                     print ('Invalid Command')
                     continue
@@ -142,13 +146,12 @@ class CommittedConsumer:
             self.commit['Certificate']['KeyBroker'],
             self.commit['CertificateSignature'])
 
-    def isValid(self, signature):
-        assert self.commit['Date'] < self.commit[
-            'Certificate']['ExpirationDate']
+    def isValid(self):
+        assert self.commit['Date'] < time.time()
 
     def getPayment(self, link, amount):
         if utils.chainHash(link, amount) != self.lastLink:
-            raise PaymentError
+            raise PaymentError('Invalid Hash')
         self.lastLink = link
         self.amount += amount
 

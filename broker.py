@@ -124,7 +124,7 @@ class Broker:
         while True:
             self.ssl_accept()
             thread = Thread(target=self.deal_with_client,
-                            args=(self.connstream,))
+                            args=(self.connstream, self.addr[1]))
             thread.start()
 
     def runcmd(self):

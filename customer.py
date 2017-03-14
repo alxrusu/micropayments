@@ -100,7 +100,7 @@ class Customer:
                     amount -= self.knownVendors[
                         vendor].sendLinkFraudPayment(amount)
                 else:
-                    amount -= self.knownVendors[vendor].sendPayment(amount)
+                    amount -= self.knownVendors[vendor].sendPayment(self.identity, amount)
             except PaymentError, e:
                 raise e
 
@@ -155,7 +155,7 @@ class CommittedVendor:
             data = utils.chainHash(data, 1)
             self.hashChain.append(data)
 
-        self.lastUsed = chainLen
+        self.lastUsed = chainLen - 1
         self.chainLen = chainLen
 
     def genHashChain(self, chainLen=100):
@@ -175,11 +175,12 @@ class CommittedVendor:
                 'Date': time.time(),
                 'Info': self.chainLen}
 
-    def sendPayment(self, amount):
+    def sendPayment(self, identity, amount):
 
         amount = min(amount, self.lastUsed)
-        data = {'Link': self.hashChain[
-            self.lastUsed - amount], 'Amount': amount}
+        data = {'Identity': str(identity),
+            'Link': self.hashChain[self.lastUsed - amount],
+            'Amount': amount}
 
         response = utils.getResponse(self.vendor, 'Pay', data, '')
         if response['Response'] == 'OK':
@@ -199,9 +200,8 @@ class CommittedVendor:
         response = utils.getResponse(self.vendor, 'Pay', data, '')
         if response['Response'] == 'OK':
             self.lastUsed -= amount
-            print ('Payment successful. Payed' +
-                   str(amount) + ', Remaining ' +
-                   str(self.lastUsed))
+            print ('Payment successful. Payed ' + str(amount) +
+                   ', Remaining ' + str(self.lastUsed))
             return amount
         else:
             raise PaymentError('Payment Refused: ' + response['Data'])
@@ -224,7 +224,7 @@ class CertificateError (RuntimeError):
 
 if __name__ == '__main__':
 
-    identity = 9000
+    identity = 8000
     broker = 9043
     try:
         identity = int(sys.argv[1])
