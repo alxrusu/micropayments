@@ -109,22 +109,22 @@ class Vendor:
                     continue
 
                 for customerCommit in commitList:
-                    data = {'Certificate':
-                            customerCommit.commit['Certificate'],
-                            'CertificateSignature':
-                            customerCommit.commit['Certificate']['KeyBroker'],
+                    print "\n\nDumping commit json\n\n" + \
+                        json.dumps(customerCommit.commit)
+                    data = {'Commit':
+                            customerCommit.commit,
                             'Hash': customerCommit.lastLink,
                             'Amount': customerCommit.amount}
                     response = utils.getSSLResponse(
                         int(customerCommit.commit['Certificate']['Broker']),
                         'Redeem', data, '')
-                    print ('Trying to redeem ' + customerCommit.amount +
+                    print ('Trying to redeem ' + str(customerCommit.amount) +
                            ' from certificate ' +
                            str(customerCommit.commit['Certificate']))
                     if response['Response'] == 'OK':
                         print ('Redeem successful')
                     else:
-                        print ('Redeem failed ' + response['Data'])
+                        print ('Redeem failed ' + json.dumps(response['Data']))
 
             elif cmd[0] == 'clear':
 

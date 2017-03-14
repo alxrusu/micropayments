@@ -17,7 +17,7 @@ class Broker:
     def buildSocket(self):
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            print 'Socket created'
+            print 'Broker Server started!'
         except socket.error, msg:
             print 'Failed to create socket Error code: ' +\
                 str(msg[0]) + ', Error message: ' + msg[1]
@@ -46,14 +46,18 @@ class Broker:
                 err = 1
 
     def deal_with_client(self, connstream, port):
-        data = connstream.read()
+        data = connstream.recv(4096)
 
-        print data
         request = json.loads(data)
         if request['Request'] == 'Certificate':
+
             userdata = request['Data']
             user_identity = userdata['Identity']
             user_public_key = userdata['KeyUser']
+
+            print "User " + str(user_identity) +\
+                  " Requested new Payword Certificate"
+
             publickey = self.key.publickey()
             payword_json = {"Broker": str(self.identity),
                             "User": str(user_identity),
@@ -64,7 +68,6 @@ class Broker:
                             "Info": str(self.credit)}
             cert_sig = generateSignature(
                 payword_json, self.key)
-            print "\n\n" + json.dumps(payword_json) + "\n\n"
             connstream.send(json.dumps(
                 {'Response': 'OK',
                  'Data': payword_json,
@@ -73,9 +76,11 @@ class Broker:
         elif request['Request'] == 'Redeem':
             data = request['Data']
             commit = data['Commit']
-
             cert = commit['Certificate']
             cert_sig = commit['CertificateSignature']
+
+            print "Vendor " + str(commit['Vendor']) +\
+                  " Requested Payword Redeem"
 
             if cert['Broker'] != str(self.identity):
                 connstream.send(
@@ -87,7 +92,7 @@ class Broker:
                     json.dumps({'Response': 'Error',
                                 'Data': 'Forged Key',
                                 'Signature': ''}).encode('utf-8'))
-            elif not verifySignature(cert, self.key, cert_sig):
+            elif not verifySignature(cert, cert['KeyBroker'], cert_sig):
                 connstream.send(
                     json.dumps({'Response': 'Error',
                                 'Data': 'Invalid Signature',
@@ -103,7 +108,7 @@ class Broker:
                 else:
                     self.vendors[port].append(commit['HashRoot'])
                     connstream.send(
-                        json.dumps({'Response': 'Error',
+                        json.dumps({'Response': 'OK',
                                     'Data': 'Redeem Successful',
                                     'Signature': ''}).encode('utf-8'))
 

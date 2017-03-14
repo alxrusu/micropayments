@@ -79,7 +79,7 @@ class Customer:
                 if response['Response'] != 'OK':
                     raise VendorError('Commit Refused: ' + response['Data'])
                 else:
-                    print response['Data']
+                    pass
                 self.knownVendors[vendor] = newCommit
 
             try:
@@ -180,11 +180,11 @@ class CommittedVendor:
         else:
             raise PaymentError('Payment Refused: ' + response['Data'])
 
-    def sendLinkFraudPayment(self, amount, fraud):
+    def sendLinkFraudPayment(self, amount):
         amount = min(amount, self.lastUsed)
-        data = {'Link': self.genHashChain[
-            self.lastUsed - amount], 'Amount': amount}
-
+        data = {'Identity': str(identity),
+                'Link': self.genHashChain()[self.lastUsed - amount],
+                'Amount': amount}
         response = utils.getResponse(self.vendor, 'Pay', data, '')
         if response['Response'] == 'OK':
             self.lastUsed -= amount

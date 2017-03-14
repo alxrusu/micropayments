@@ -10,7 +10,7 @@ ssl_keyfile = "key.pem"
 
 def generateSignature(data, privateKey):
     sha1 = hashlib.sha1()
-    sha1.update(json.dumps(data))
+    sha1.update(json.dumps(data).encode('utf-8'))
     return privateKey.sign(sha1.hexdigest(), '')
 
 
