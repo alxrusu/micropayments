@@ -8,8 +8,8 @@ import time
 import utils
 
 CERTIFICATE_FRAUD = 1
-LINK_FRAUD = 2
-PAYWORD_FRAUD = 4
+PAYWORD_FRAUD = 2
+LINK_FRAUD = 4
 
 if sys.version_info[0] < 3:
     input = raw_input
@@ -25,7 +25,6 @@ class Customer:
         self.certificate = None
         self.certificateSignature = None
         self.knownVendors = dict()
-        self.fraud = 0
 
     def requestCertificate(self):
 
@@ -51,31 +50,32 @@ class Customer:
 
     def payVendor(self, vendor, amount, fraud):
 
-        self.fraud = fraud
-
         while amount > 0:
 
             if vendor not in self.knownVendors:
 
                 newCommit = CommittedVendor(vendor)
+
                 certificate_copy = dict(self.certificate)
-                certificate_copy['Broker'] = "NotScamAtAll"
-                if CERTIFICATE_FRAUD & fraud:
+                if fraud & CERTIFICATE_FRAUD:
+                    certificate_copy['Broker'] = "NotScamAtAll"
                     data = newCommit.generateCommit(
                         certificate_copy, self.certificateSignature)
                 else:
                     data = newCommit.generateCommit(
                         self.certificate, self.certificateSignature)
+
                 signature = utils.generateSignature(data, self.privateKey)
 
                 data_copy = dict(data)
-                if PAYWORD_FRAUD & fraud:
+                if fraud & PAYWORD_FRAUD:
                     data_copy['Date'] = 'ieri'
                     response = utils.getResponse(
                         vendor, 'Commit', data_copy, signature)
                 else:
                     response = utils.getResponse(
                         vendor, 'Commit', data, signature)
+
                 if response['Response'] != 'OK':
                     raise VendorError('Commit Refused: ' + response['Data'])
                 else:
@@ -83,12 +83,9 @@ class Customer:
                 self.knownVendors[vendor] = newCommit
 
             try:
-                if LINK_FRAUD & fraud:
-                    amount -= self.knownVendors[
-                        vendor].sendLinkFraudPayment(amount)
-                else:
-                    amount -= self.knownVendors[
-                        vendor].sendPayment(self.identity, amount)
+                linkFraud = 1 if fraud & LINK_FRAUD else 0
+                amount -= self.knownVendors[
+                    vendor].sendPayment(self.identity, amount, linkFraud)
             except PaymentError, e:
                 raise e
 
@@ -163,33 +160,19 @@ class CommittedVendor:
                 'Date': time.time(),
                 'Info': self.chainLen}
 
-    def sendPayment(self, identity, amount):
+    def sendPayment(self, identity, amount, fraud):
 
         amount = min(amount, self.lastUsed)
         data = {'Identity': str(identity),
-                'Link': self.hashChain[self.lastUsed - amount],
+                'Link': self.hashChain[self.lastUsed - amount + fraud],
                 'Amount': amount}
 
         response = utils.getResponse(self.vendor, 'Pay', data, '')
         if response['Response'] == 'OK':
             self.lastUsed -= amount
-            print ('Payment successful. Payed' +
+            print ('Payment successful. Payed ' +
                    str(amount) + ', Remaining ' +
                    str(self.lastUsed))
-            return amount
-        else:
-            raise PaymentError('Payment Refused: ' + response['Data'])
-
-    def sendLinkFraudPayment(self, amount):
-        amount = min(amount, self.lastUsed)
-        data = {'Identity': str(identity),
-                'Link': self.genHashChain()[self.lastUsed - amount],
-                'Amount': amount}
-        response = utils.getResponse(self.vendor, 'Pay', data, '')
-        if response['Response'] == 'OK':
-            self.lastUsed -= amount
-            print ('Payment successful. Payed ' + str(amount) +
-                   ', Remaining ' + str(self.lastUsed))
             return amount
         else:
             raise PaymentError('Payment Refused: ' + response['Data'])

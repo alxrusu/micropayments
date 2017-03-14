@@ -62,16 +62,15 @@ class Vendor:
                     json.dumps({'Response': 'Error',
                                 'Data': 'Commit Expired',
                                 'Signature': ''}).encode('utf-8'))
-            except KeyError as k:
-                print "Key error", k
+            except KeyError:
                 connstream.send(
                     json.dumps({'Response': 'Error',
                                 'Data': 'Commit Missing',
                                 'Signature': ''}).encode('utf-8'))
-            except PaymentError:
+            except PaymentError as e:
                 connstream.send(
                     json.dumps({'Response': 'Error',
-                                'Data': 'Invalid Payment',
+                                'Data': 'Invalid Payment ' + e.arg,
                                 'Signature': ''}).encode('utf-8'))
             else:
                 connstream.send(json.dumps(
