@@ -114,7 +114,7 @@ class Customer:
                     amount = int(cmd[2])
                     if cmd[0] == 'fraud':
                         fraud = int(cmd[3])
-                except ValueError:
+                except:
                     print ('Invalid Command')
                     continue
 
