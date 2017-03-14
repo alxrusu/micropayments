@@ -15,27 +15,49 @@ class Vendor:
         self.soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.soc.bind((self.HOST, self.PORT))
         self.soc.listen(10)
+        self.knownCustomers = dict()
         networking = Thread(target=self.serve)
         networking.start()
 
-    def deal_with_client(self, connstream):
-        data = connstream.recv(4096)
+    def deal_with_client(self, connstream, port):
 
+        data = connstream.recv(4096)
+        request = json.loads(data).decode('utf-8')
         print data
-        request = json.loads(data)
+
         if request['Request'] == "Commit":
-            print "got a payment!"
-            connstream.send(json.dumps({'Response': 'OK', 'Data': 'Accepted'}))
+            print "Commit registered"
+
+            try:
+                commit = CommittedConsumer (self.PORT, request['Data'], request['Signature'])
+            except AssertionError:
+                connstream.send(json.dumps({'Response': 'Error', 'Data': 'Invalid Commit', 'Signature': ''}).encode('utf-8'))
+            else:
+                self.knownCustomers[port].insert (0, commit)
+                connstream.send(json.dumps({'Response': 'OK', 'Data': 'Accepted', 'Signature':''}).encode('utf-8'))
+
         if request['Request'] == "Pay":
-            print "got Money!"
-            connstream.send(json.dumps({'Response': 'OK', 'Data': 'Accepted'}))
+            print "Payment registered"
+
+            try:
+                commit = self.knownCustomers[port]
+                commit.isValid()
+            except AssertionError:
+                connstream.send(
+                    json.dumps({'Response': 'Error', 'Data': 'Commit Expired', 'Signature': ''}).encode('utf-8'))
+            except KeyError:
+                connstream.send(
+                    json.dumps({'Response': 'Error', 'Data': 'Commit Missing', 'Signature': ''}).encode('utf-8'))
+            else:
+                connstream.send(json.dumps({'Response': 'OK', 'Data': 'Payment Completed', 'Signature':''}).encode('utf-8'))
+
         connstream.close()
 
     def serve(self):
         while True:
-            self.conn, self.addr = self.soc.accept()
+            conn, addr = self.soc.accept()
             thread = Thread(target=self.deal_with_client,
-                            args=(self.conn,))
+                            args=(conn, addr))
             thread.start()
 
     def runcmd(self):
@@ -55,20 +77,22 @@ class Vendor:
 
 class CommittedConsumer:
 
-    def __init__(self, commit):
+    def __init__(self, vendor, commit, signature):
+
         self.commit = commit
         self.hashRoot = commit['HashRoot']
 
-    def isValid(self, vendor, signature):
         assert self.commit['Vendor'] == vendor
-        assert self.commit['Date'] < self.commit[
-            'Certificate']['ExpirationDate']
         assert utils.verifySignature(self.commit, self.commit[
-                                     'Certificate']['KeyUser'], signature)
+            'Certificate']['KeyUser'], signature)
         assert utils.verifySignature(
             self.commit['Certificate'],
             self.commit['Certificate']['KeyBroker'],
             self.commit['Certificate']['CertificateSignature'])
+
+    def isValid(self, signature):
+        assert self.commit['Date'] < self.commit[
+            'Certificate']['ExpirationDate']
 
     def getPayment(self, link, amount):
         pass

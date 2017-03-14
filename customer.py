@@ -58,7 +58,7 @@ class Customer:
             raise CertificateError(
                 'Certificate Request Refused: ' + str(response['Data']))
 
-    def payVendor(self, vendor, amount):
+    def payVendor(self, vendor, amount, fraud):
 
         while amount > 0:
 
@@ -91,11 +91,14 @@ class Customer:
             cmd = input()
             cmd = cmd.split(' ')
 
-            if cmd[0] == 'pay':
+            if cmd[0] == 'pay' or cmd[0] == 'fraud':
 
+                fraud = 0
                 try:
                     vendor = int(cmd[1])
                     amount = int(cmd[2])
+                    if cmd[0] == 'fraud':
+                        fraud = int(cmd[3])
                 except:
                     print ('Invalid Command')
                     continue
@@ -109,7 +112,7 @@ class Customer:
                         sys.exit(-1)
 
                 try:
-                    self.payVendor(vendor, amount)
+                    self.payVendor(vendor, amount, fraud)
                 except (PaymentError, VendorError) as e:
                     print (e.arg)
 
