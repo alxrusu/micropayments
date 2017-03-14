@@ -28,7 +28,8 @@ class Broker:
         self.soc = self.buildSocket()
         self.key = RSA.generate(1024, os.urandom)
         self.credit = 6
-        self.identiy = self.PORT
+        self.identity = self.PORT
+        self.vendors = dict()
         err = 0
         msg = None
         try:
@@ -44,7 +45,7 @@ class Broker:
                 print "Listen failed: " + str(msg[0]) + " Message " + msg[1]
                 err = 1
 
-    def deal_with_client(self, connstream):
+    def deal_with_client(self, connstream, port):
         data = connstream.read()
 
         print data
@@ -54,7 +55,7 @@ class Broker:
             user_identity = userdata['Identity']
             user_public_key = userdata['KeyUser']
             publickey = self.key.publickey()
-            payword_json = {"Broker": str(self.identiy),
+            payword_json = {"Broker": str(self.identity),
                             "User": str(user_identity),
                             "UserIP": str(self.addr),
                             "KeyBroker": str(publickey.exportKey()),
@@ -68,35 +69,34 @@ class Broker:
                 {'Response': 'OK',
                  'Data': payword_json,
                  'Signature': cert_sig}).encode('utf-8'))
-        elif request['Request'] == 'Redeem':
-            userdata = request['Data']
-            signature = request['Signature']
-            commit = userdata['Commit']
-            # last_commit = userdata['LastCommit']
-            # last_commit_index = userdata['LastCommitIndex']
 
-            # vendor = commit['Vendor']
+        elif request['Request'] == 'Redeem':
+            data = request['Data']
+            commit = data['Commit']
+
             cert = commit['Certificate']
             cert_sig = commit['CertificateSignature']
-            # hash_root = commit['HashRoot']
-            # time = commit['Time']
-            # length = commit['Info']
 
-            # broker = cert['Broker']
-            # user = cert['User']
-            # userIP = cert['UserIP']
-            # keyBroker = cert['KeyBroker']
-            # keyUser = cert['KeyUser']
-            # expirationDate = cert['ExpirationDate']
-            # info = cert['Info']
-
-            if cert_sig != generateSignature(cert, self.key) or\
-               signature != generateSignature(userdata, self.key):
-                print "Invalid signature"
+            if cert['Broker'] != str(self.identity):
+                connstream.send(
+                    json.dumps({'Response': 'Error', 'Data': 'Invalid Broker', 'Signature': ''}).encode('utf-8'))
+            elif cert['KeyBroker'] != str(self.key.publickey().exportKey()):
+                connstream.send(
+                    json.dumps({'Response': 'Error', 'Data': 'Forged Key', 'Signature': ''}).encode('utf-8'))
+            elif not verifySignature (cert, self.key, cert_sig):
+                connstream.send(
+                    json.dumps({'Response': 'Error', 'Data': 'Invalid Signature', 'Signature': ''}).encode('utf-8'))
             else:
-                print "Checking hashes"
+                if port not in self.vendors:
+                    self.vendors[port] = list()
+                if commit['HashRoot'] in self.vendors[port]:
+                    connstream.send(
+                        json.dumps({'Response': 'Error', 'Data': 'Already Redeemed', 'Signature': ''}).encode('utf-8'))
+                else:
+                    self.vendors[port].append(commit['HashRoot'])
+                    connstream.send(
+                        json.dumps({'Response': 'Error', 'Data': 'Redeem Successful', 'Signature': ''}).encode('utf-8'))
 
-                print "Hashes ok"
         self.ssl_disconnect()
 
     def ssl_accept(self):
