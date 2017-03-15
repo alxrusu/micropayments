@@ -36,7 +36,7 @@ def getResponse(port, request, data, signature):
     s.send(json.dumps({'Request': request, 'Data': data,
                        'Signature': signature}).encode('utf-8'))
     raw_response = s.recv(4096).decode('utf-8')
-    print "\n\n" + raw_response + "\n\n"
+    print "\nResponse\n" + raw_response + "\n\n"
     response = json.loads(raw_response)
     s.close()
     return response

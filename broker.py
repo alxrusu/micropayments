@@ -76,6 +76,7 @@ class Broker:
         elif request['Request'] == 'Redeem':
             data = request['Data']
             commit = data['Commit']
+            commit_sig = data['CommitSignature']
             vendor = commit['Vendor']
             cert = commit['Certificate']
             cert_sig = commit['CertificateSignature']
@@ -93,10 +94,15 @@ class Broker:
                     json.dumps({'Response': 'Error',
                                 'Data': 'Forged Key',
                                 'Signature': ''}).encode('utf-8'))
+            elif not verifySignature(commit, cert['KeyUser'], commit_sig):
+                connstream.send(
+                    json.dumps({'Response': 'Error',
+                                'Data': 'Invalid Commit Signature',
+                                'Signature': ''}).encode('utf-8'))
             elif not verifySignature(cert, cert['KeyBroker'], cert_sig):
                 connstream.send(
                     json.dumps({'Response': 'Error',
-                                'Data': 'Invalid Signature',
+                                'Data': 'Invalid Certificate Signature',
                                 'Signature': ''}).encode('utf-8'))
             else:
                 if vendor not in self.vendors:

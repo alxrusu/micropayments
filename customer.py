@@ -7,9 +7,9 @@ import time
 
 import utils
 
-CERTIFICATE_FRAUD = 1
-PAYWORD_FRAUD = 2
-LINK_FRAUD = 4
+FRAUD_CERTIFICATE = 1
+FRAUD_COMMIT = 2
+FRAUD_HASH = 4
 
 if sys.version_info[0] < 3:
     input = raw_input
@@ -62,24 +62,23 @@ class Customer:
 
                 newCommit = CommittedVendor (vendor, self.chainLen, self.linkValue)
 
-                certificate_copy = dict(self.certificate)
-                if fraud & CERTIFICATE_FRAUD:
-                    certificate_copy['Broker'] = "NotScamAtAll"
-                    data = newCommit.generateCommit(
-                        certificate_copy, self.certificateSignature)
-                else:
-                    data = newCommit.generateCommit(
-                        self.certificate, self.certificateSignature)
+                certificate = self.certificate
+                if fraud & FRAUD_CERTIFICATE:
+                    print 'Forging certificate'
+                    certificate = dict(self.certificate)
+                    certificate['Broker'] = "NotScamAtAll"
+
+                data = newCommit.generateCommit(
+                    certificate, self.certificateSignature)
 
                 signature = utils.generateSignature(data, self.privateKey)
 
-                data_copy = dict(data)
-                if fraud & PAYWORD_FRAUD:
-                    data_copy['Date'] = 'ieri'
-                    response = utils.getResponse(
-                        vendor, 'Commit', data_copy, signature)
-                else:
-                    response = utils.getResponse(
+                if fraud & FRAUD_COMMIT:
+                    print 'Forging commit'
+                    data['Date'] = 'ieri'
+
+                print 'Sending commit'
+                response = utils.getResponse(
                         vendor, 'Commit', data, signature)
 
                 if response['Response'] != 'OK':
@@ -89,7 +88,11 @@ class Customer:
                 self.knownVendors[vendor] = newCommit
 
             try:
-                linkFraud = 1 if fraud & LINK_FRAUD else 0
+                linkFraud = 0
+                if fraud & FRAUD_HASH:
+                    print 'Forging hash'
+                    linkFraud = 1
+                print 'Sending payment'
                 amount -= self.knownVendors[
                     vendor].sendPayment(self.identity, amount, linkFraud)
             except PaymentError, e:
@@ -129,6 +132,17 @@ class Customer:
                     self.payVendor(vendor, amount, fraud)
                 except (PaymentError, VendorError) as e:
                     print (e.arg)
+
+            elif cmd[0] == 'clear':
+
+                try:
+                    vendor = int(cmd[1])
+                except:
+                    print ('Invalid Command')
+                    continue
+
+                if vendor in self.knownVendors:
+                    del self.knownVendors[vendor]
 
             elif cmd[0] == 'setlen':
                 try:

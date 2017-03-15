@@ -6,6 +6,9 @@ from threading import Thread
 import json
 import time
 
+FRAUD_COMMIT = 1
+FRAUD_HASH = 2
+FRAUD_AMOUNT = 4
 
 class Vendor:
 
@@ -26,7 +29,7 @@ class Vendor:
         request = json.loads(data.decode('utf-8'))
 
         if request['Request'] == "Commit":
-            print "Commit registered"
+            print "Commit registered\n"
 
             identity = request['Data']['Certificate']['User']
             try:
@@ -93,11 +96,14 @@ class Vendor:
             cmd = raw_input()
             cmd = cmd.split(' ')
 
-            if cmd[0] == 'redeem':
+            if cmd[0] == 'redeem' or cmd[0] == 'fraud':
 
+                fraud = 0
                 try:
                     consumer = int(cmd[1])
                     consumer = str(consumer)
+                    if cmd[0] == 'fraud':
+                        fraud = int(cmd[2])
                     commitList = self.knownCustomers[consumer]
                 except KeyError:
                     print ('No payments for user ' + consumer)
@@ -107,15 +113,33 @@ class Vendor:
                     continue
 
                 for customerCommit in commitList:
-                    data = {'Commit': customerCommit.commit,
-                            'Hash': customerCommit.lastLink,
-                            'Amount': customerCommit.amount}
+
+                    commit = customerCommit.commit
+                    hash = customerCommit.lastLink
+                    amount = customerCommit.amount
+                    signature = customerCommit.signature
+
+                    if fraud & FRAUD_COMMIT:
+                        print 'Forging commit'
+                        commit = dict(commit)
+                        commit['Data'] = 'Legit'
+
+                    if fraud & FRAUD_HASH:
+                        print 'Forging hash'
+                        hash = utils.chainHash(hash, 1)
+
+                    if fraud & FRAUD_AMOUNT:
+                        print 'Forging amount'
+                        amount += 1
+
+                    data = {'Commit': commit,
+                            'CommitSignature': signature,
+                            'Hash': hash,
+                            'Amount': amount}
                     response = utils.getSSLResponse(
                         int(customerCommit.commit['Certificate']['Broker']),
                         'Redeem', data, '')
-                    print ('Trying to redeem ' + str(customerCommit.amount) +
-                           ' from certificate ' +
-                           str(customerCommit.commit['Certificate']))
+                    print ('Trying to redeem ' + str(customerCommit.amount))
                     if response['Response'] == 'OK':
                         print (response['Data'])
                     else:
@@ -126,7 +150,7 @@ class Vendor:
                 try:
                     consumer = int(cmd[1])
                     consumer = str(consumer)
-                except ValueError:
+                except:
                     print ('Invalid Command')
                     continue
 
@@ -146,6 +170,7 @@ class CommittedConsumer:
     def __init__(self, vendor, commit, signature):
 
         self.commit = commit
+        self.signature = signature
         self.lastLink = commit['HashRoot']
         self.amount = 0
         self.value = commit['Info'][1]
@@ -163,7 +188,7 @@ class CommittedConsumer:
 
     def isValid(self):
         assert self.commit['Date'] < time.time()
-        print 'Commit date valid'
+        print 'Commit date valid\n'
 
     def getPayment(self, link, amount):
         if utils.chainHash(link, amount) != self.lastLink:
