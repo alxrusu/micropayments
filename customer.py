@@ -25,11 +25,16 @@ class Customer:
         self.certificate = None
         self.certificateSignature = None
         self.knownVendors = dict()
+        self.chainLen = 100
+        self.linkValue = 1
 
     def requestCertificate(self):
 
+        print 'Request new certificate'
         data = {'Identity': self.identity,
-                'KeyUser': self.publicKey.exportKey()}
+                'KeyUser': self.publicKey.exportKey(),
+                'Length': self.chainLen,
+                'Value': self.linkValue}
 
         response = utils.getSSLResponse(self.broker, 'Certificate', data, '')
         if response['Response'] == 'OK':
@@ -37,11 +42,12 @@ class Customer:
             certificate = response['Data']
             self.certificateSignature = response['Signature']
 
-            print "\n\n" + json.dumps(certificate) + "\n\n"
             if utils.verifySignature(certificate,
                                      certificate['KeyBroker'],
                                      self.certificateSignature):
                 self.certificate = certificate
+                print 'Certificate signature valid'
+                print 'New certificate granted'
             else:
                 raise CertificateError('Altered Certificate')
         else:
@@ -54,7 +60,7 @@ class Customer:
 
             if vendor not in self.knownVendors:
 
-                newCommit = CommittedVendor(vendor)
+                newCommit = CommittedVendor (vendor, self.chainLen, self.linkValue)
 
                 certificate_copy = dict(self.certificate)
                 if fraud & CERTIFICATE_FRAUD:
@@ -124,13 +130,33 @@ class Customer:
                 except (PaymentError, VendorError) as e:
                     print (e.arg)
 
-            if cmd[0] == 'exit':
+            elif cmd[0] == 'setlen':
+                try:
+                    length = int(cmd[1])
+                    assert length > 1
+                    self.chainLen = length
+                except:
+                    print ('Invalid Command')
+
+            elif cmd[0] == 'setvalue':
+                try:
+                    value = int(cmd[1])
+                    assert value > 0
+                    self.linkValue = value
+                except:
+                    print ('Invalid Command')
+
+
+            elif cmd[0] == 'exit':
                 break
+
+            else:
+                print ("Unknown Command")
 
 
 class CommittedVendor:
 
-    def __init__(self, vendor, chainLen=100):
+    def __init__(self, vendor, chainLen, linkValue):
 
         self.vendor = vendor
         data = os.urandom(256)
@@ -142,15 +168,7 @@ class CommittedVendor:
 
         self.lastUsed = chainLen - 1
         self.chainLen = chainLen
-
-    def genHashChain(self, chainLen=100):
-        data = os.urandom(256)
-        hashChain = list()
-
-        for i in range(chainLen):
-            data = utils.chainHash(data, 1)
-            hashChain.append(data)
-        return hashChain
+        self.linkValue = linkValue
 
     def generateCommit(self, certificate, signature):
         return {'Vendor': self.vendor,
@@ -158,10 +176,11 @@ class CommittedVendor:
                 'CertificateSignature': signature,
                 'HashRoot': self.hashChain[self.chainLen - 1],
                 'Date': time.time(),
-                'Info': self.chainLen}
+                'Info': (self.chainLen, self.linkValue)}
 
     def sendPayment(self, identity, amount, fraud):
 
+        amount = (amount - 1) // self.linkValue + 1
         amount = min(amount, self.lastUsed)
         data = {'Identity': str(identity),
                 'Link': self.hashChain[self.lastUsed - amount + fraud],
@@ -171,9 +190,9 @@ class CommittedVendor:
         if response['Response'] == 'OK':
             self.lastUsed -= amount
             print ('Payment successful. Payed ' +
-                   str(amount) + ', Remaining ' +
-                   str(self.lastUsed))
-            return amount
+                   str(amount) + ' (x' + str(self.linkValue) +
+                   '), Remaining ' + str(self.lastUsed))
+            return amount * self.linkValue
         else:
             raise PaymentError('Payment Refused: ' + response['Data'])
 
@@ -196,7 +215,7 @@ class CertificateError (RuntimeError):
 if __name__ == '__main__':
 
     identity = 8000
-    broker = 9043
+    broker = 7000
     try:
         identity = int(sys.argv[1])
         broker = int(sys.argv[2])
@@ -206,4 +225,5 @@ if __name__ == '__main__':
     except IndexError:
         pass
     customer = Customer(identity, broker)
+    print 'Customer Alive'
     customer.runcmd()

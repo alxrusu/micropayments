@@ -24,7 +24,6 @@ class Vendor:
 
         data = connstream.recv(4096)
         request = json.loads(data.decode('utf-8'))
-        print request
 
         if request['Request'] == "Commit":
             print "Commit registered"
@@ -108,8 +107,7 @@ class Vendor:
                     continue
 
                 for customerCommit in commitList:
-                    data = {'Commit':
-                            customerCommit.commit,
+                    data = {'Commit': customerCommit.commit,
                             'Hash': customerCommit.lastLink,
                             'Amount': customerCommit.amount}
                     response = utils.getSSLResponse(
@@ -119,7 +117,7 @@ class Vendor:
                            ' from certificate ' +
                            str(customerCommit.commit['Certificate']))
                     if response['Response'] == 'OK':
-                        print ('Redeem successful')
+                        print (response['Data'])
                     else:
                         print ('Redeem failed ' + json.dumps(response['Data']))
 
@@ -150,23 +148,30 @@ class CommittedConsumer:
         self.commit = commit
         self.lastLink = commit['HashRoot']
         self.amount = 0
+        self.value = commit['Info'][1]
 
         assert self.commit['Vendor'] == vendor
+        print 'Vendor valid'
         assert utils.verifySignature(self.commit, self.commit[
             'Certificate']['KeyUser'], signature)
+        print 'Commit signature valid'
         assert utils.verifySignature(
             self.commit['Certificate'],
             self.commit['Certificate']['KeyBroker'],
             self.commit['CertificateSignature'])
+        print 'Certificate signature valid'
 
     def isValid(self):
         assert self.commit['Date'] < time.time()
+        print 'Commit date valid'
 
     def getPayment(self, link, amount):
         if utils.chainHash(link, amount) != self.lastLink:
             raise PaymentError('Invalid Hash')
         self.lastLink = link
         self.amount += amount
+        print ('Got a payment of ' + str(amount) +
+               ' (x' + str(self.value) + ')')
 
 
 class PaymentError (RuntimeError):
@@ -184,4 +189,5 @@ if __name__ == "__main__":
     except IndexError:
         pass
     vendor = Vendor(identity)
+    print 'Vendor listening'
     vendor.runcmd()

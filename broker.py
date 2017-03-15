@@ -3,6 +3,7 @@ import socket
 import ssl
 import json
 import os
+import sys
 import Crypto.PublicKey.RSA as RSA
 from datetime import datetime
 from utils import *
@@ -27,7 +28,6 @@ class Broker:
         self.PORT = port
         self.soc = self.buildSocket()
         self.key = RSA.generate(1024, os.urandom)
-        self.credit = 6
         self.identity = self.PORT
         self.vendors = dict()
         err = 0
@@ -65,7 +65,7 @@ class Broker:
                             "KeyBroker": str(publickey.exportKey()),
                             "KeyUser": str(user_public_key),
                             "ExpirationDate": str(datetime.now()),
-                            "Info": str(self.credit)}
+                            "Info": ''}
             cert_sig = generateSignature(
                 payword_json, self.key)
             connstream.send(json.dumps(
@@ -113,10 +113,12 @@ class Broker:
                                         'Data': 'Invalid Hash',
                                         'Signature': ''}).encode('utf-8'))
                     else:
+                        payed = data['Amount'] * commit['Info'][1]
+                        print ('Payed vendor ' + str(vendor) + ': ' + str(payed))
                         self.vendors[vendor].append(commit['HashRoot'])
                         connstream.send(
                             json.dumps({'Response': 'OK',
-                                        'Data': 'Redeem Successful',
+                                        'Data': 'Redeem Successful: ' + str(payed),
                                         'Signature': ''}).encode('utf-8'))
 
         self.ssl_disconnect()
@@ -155,6 +157,14 @@ class Broker:
 
 if __name__ == "__main__":
 
-    broker = Broker(9043)
+    identity = 7000
+    try:
+        identity = int(sys.argv[1])
+    except ValueError:
+        print ('Invalid argument')
+        sys.exit(-1)
+    except IndexError:
+        pass
 
+    broker = Broker(identity)
     broker.serve()
